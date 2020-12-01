@@ -51,7 +51,7 @@ public class QuizeClient extends Application
     private int otherScore = 0;
 
 // Create and initialize cells 
-    private Cell[][] cell = new Cell[3][3];
+   
 
 // Create and initialize a title label 
     private Label lblTitle = new Label();
@@ -66,6 +66,7 @@ public class QuizeClient extends Application
 // Input and output streams from/to server 
     private DataInputStream fromServer;
     private DataOutputStream toServer;
+  //  private ObjectInput questionObject;
 
 // Continue to play? 
     private boolean continueToPlay = true;
@@ -127,6 +128,8 @@ public class QuizeClient extends Application
 
     private void connectToServer(TextArea taLog) {
         try {
+            
+            
             // Create a socket to connect to the server 
             Socket socket = new Socket(host, 8000);
             Platform.runLater(() -> taLog.appendText(new Date()
@@ -137,6 +140,10 @@ public class QuizeClient extends Application
 
              // Create an output stream to send data to the server 
             toServer = new DataOutputStream(socket.getOutputStream());
+             
+            
+          //   questionObject = new ObjectInputStream(socket.getInputStream());
+           
         } catch (Exception ex) {
             ex.printStackTrace();
         }
@@ -144,6 +151,7 @@ public class QuizeClient extends Application
                 // Control the game on a separate thread 
         new Thread(() -> {
             try {
+                 
 
                  // Get notification from the server 
                 int player = fromServer.readInt();
@@ -173,12 +181,12 @@ public class QuizeClient extends Application
 
                 }
 
+                
                  // Continue to play 
                 while (continueToPlay) {
                     if (player == PLAYER1) {
                                            
-                      displayQuestion();
-                    //  waitForPlayerAction(); // Wait for player 1 to move       
+                      displayQuestion();  
                       sendAnswer();
                     //  receiveInfoFromServer(player);
                       
@@ -186,10 +194,7 @@ public class QuizeClient extends Application
                  
                       //  receiveInfoFromServer(); // Receive info from the server 
                     } else if (player == PLAYER2) {
-//                        receiveInfoFromServer(); // Receive info from the server 
-//                        waitForPlayerAction(); // Wait for player 2 to move 
-//                        sendMove(); // Send player 2's move to the server 
- //  waitForPlayerAction(); // Wait for player 1 to move  
+
                         displayQuestion();                            
                         sendAnswer();
                       //  receiveInfoFromServer(player);
@@ -235,12 +240,16 @@ public class QuizeClient extends Application
     
     }
 
-    private void displayQuestion() throws IOException{
+    private void displayQuestion() throws IOException, ClassNotFoundException{
     
          
-        String readLine = fromServer.readUTF();
-        String s = readLine;
-        Platform.runLater(() -> taLog.appendText(s));
+      
+        String question = fromServer.readUTF();
+        String []choices = {fromServer.readUTF(),fromServer.readUTF(),fromServer.readUTF(),fromServer.readUTF()};
+         Quiz q = new Quiz(question, choices);
+        
+        
+        Platform.runLater(() -> taLog.appendText(q.toString()));
 
     }
     /**
@@ -258,7 +267,7 @@ public class QuizeClient extends Application
             } else if (player == PLAYER2) {
                 Platform.runLater(()
                         -> lblStatus.setText("Player 1 (X) has won!"));
-                receiveMove();
+                
             }
         } else if (status == PLAYER2_WON) {
             // Player 2 won, stop playing 
@@ -268,7 +277,7 @@ public class QuizeClient extends Application
             } else if (player == PLAYER1) {
                 Platform.runLater(()
                         -> lblStatus.setText("Player 2 (O) has won!"));
-                receiveMove();
+                
             }
             // game ends and score is equal
         } else if (status == DRAW) {
@@ -279,97 +288,12 @@ public class QuizeClient extends Application
 
             
         } else {//cont game
-            receiveMove();
+           
             Platform.runLater(() -> lblStatus.setText("My turn"));
             myTurn = true; // It is my turn 
         }
     }
 
-    private void receiveMove() throws IOException {
-// Get the other player's move 
-        int row = fromServer.readInt();
-        int column = fromServer.readInt();
-
-        Platform.runLater(() -> cell[row][column].setToken(otherToken));
-    }
-
-// An inner class for a cell 
-    public class Cell extends Pane {
-// Indicate the row and column of this cell in the board 
-
-        private int row;
-        private int column;
-
-// Token used for this cell 
-        private char token = ' ';
-
-        public Cell(int row, int column) {
-            this.row = row;
-            this.column = column;
-            this.setPrefSize(2000, 2000); // What happens without this? 
-            setStyle("-fx-border-color: black"); // Set cell's border 
-            this.setOnMouseClicked(e -> handleMouseClick());
-        }
-
-        /**
-         * Return token
-         */
-        public char getToken() {
-            return token;
-        }
-
-        /**
-         * Set a new token
-         */
-        public void setToken(char c) {
-            token = c;
-            repaint();
-        }
-
-        protected void repaint() {
-            if (token == 'X') {
-                Line line1 = new Line(10, 10,
-                        this.getWidth() - 10, this.getHeight() - 10);
-                line1.endXProperty().bind(this.widthProperty().subtract(10));
-                line1.endYProperty().bind(this.heightProperty().subtract(10));
-                Line line2 = new Line(10, this.getHeight() - 10,
-                        this.getWidth() - 10, 10);
-                line2.startYProperty().bind(
-                        this.heightProperty().subtract(10));
-                line2.endXProperty().bind(this.widthProperty().subtract(10));
-
-// Add the lines to the pane 
-                this.getChildren().addAll(line1, line2);
-            } else if (token == 'O') {
-                Ellipse ellipse = new Ellipse(this.getWidth() / 2,
-                        this.getHeight() / 2, this.getWidth() / 2 - 10,
-                        this.getHeight() / 2 - 10);
-                ellipse.centerXProperty().bind(
-                        this.widthProperty().divide(2));
-                ellipse.centerYProperty().bind(
-                        this.heightProperty().divide(2));
-                ellipse.radiusXProperty().bind(
-                        this.widthProperty().divide(2).subtract(10));
-                ellipse.radiusYProperty().bind(
-                        this.heightProperty().divide(2).subtract(10));
-                ellipse.setStroke(Color.BLACK);
-                ellipse.setFill(Color.WHITE);
-
-                getChildren().add(ellipse); // Add the ellipse to the pane 
-            }
-        }
-
-        /* Handle a mouse click event */
-        private void handleMouseClick() {
-// If cell is not occupied and the player has the turn 
-            if (token == ' ' && myTurn) {
-                setToken(myToken); // Set the player's token in the cell 
-                myTurn = false;
-                rowSelected = row;
-                columnSelected = column;
-                lblStatus.setText("Waiting for the other player to move");
-                waiting = false; // Just completed a successful move 
-            }
-        }
-    }
+    
+    
 }
